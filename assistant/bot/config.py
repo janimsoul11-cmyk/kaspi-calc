@@ -46,6 +46,7 @@ def _time(name: str, default: str) -> time:
 @dataclass
 class Settings:
     telegram_token: str
+    telegram_api_base: str
     owner_id: int
     anthropic_api_key: str
     model: str
@@ -86,6 +87,8 @@ def load_settings() -> Settings:
     data_dir = Path(_env("DATA_DIR", str(BASE_DIR / "data")))
     return Settings(
         telegram_token=_env("TELEGRAM_BOT_TOKEN"),
+        # Свой Bot API сервер (или эмулятор в тестах); пусто — официальный api.telegram.org.
+        telegram_api_base=_env("TELEGRAM_API_BASE"),
         owner_id=int(_env("OWNER_ID", "0") or 0),
         anthropic_api_key=_env("ANTHROPIC_API_KEY"),
         model=_env("CLAUDE_MODEL", "claude-opus-5-5"),

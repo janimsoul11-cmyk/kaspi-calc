@@ -8,6 +8,8 @@ import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramUnauthorizedError
 
@@ -41,7 +43,10 @@ async def main() -> None:
     if not settings.telegram_token:
         sys.exit("Не задан TELEGRAM_BOT_TOKEN (см. .env.example)")
 
-    bot = Bot(settings.telegram_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    session = None
+    if settings.telegram_api_base:
+        session = AiohttpSession(api=TelegramAPIServer.from_base(settings.telegram_api_base))
+    bot = Bot(settings.telegram_token, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
     if not settings.owner_id:
