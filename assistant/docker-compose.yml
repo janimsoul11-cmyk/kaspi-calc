@@ -1,0 +1,9 @@
+services:
+  assistant:
+    build: .
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data   # база, профиль и бэкапы живут здесь, на хосте
+    restart: unless-stopped
