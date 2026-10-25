@@ -119,3 +119,18 @@ def test_backup_contains_latest_writes(tmp_path):
     backup.write_bytes(s.backup_bytes())
     row = sqlite3.connect(backup).execute("SELECT title FROM tasks").fetchone()
     assert row == ("Свежая задача",)
+
+
+def test_setup_wizard_renders_env_from_template():
+    from pathlib import Path
+
+    from bot.setup import render_env
+
+    template = (Path(__file__).resolve().parent.parent / ".env.example").read_text(encoding="utf-8")
+    env = render_env(template, {"TELEGRAM_BOT_TOKEN": "1:abc", "CLAUDE_MODEL": "claude-sonnet-5-5", "OWNER_ID": ""})
+    lines = env.splitlines()
+    assert "TELEGRAM_BOT_TOKEN=1:abc" in lines and "CLAUDE_MODEL=claude-sonnet-5-5" in lines
+    assert "OWNER_ID=" in lines
+    # Комментарии с примерами не трогаем
+    assert any(line.startswith("# Альтернатива — OpenAI") for line in lines)
+    assert len(lines) == len(template.splitlines())

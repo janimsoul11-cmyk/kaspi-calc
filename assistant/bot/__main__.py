@@ -9,6 +9,7 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramUnauthorizedError
 
 from .assistant import Assistant
 from .brain import Brain
@@ -67,4 +68,9 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except TelegramUnauthorizedError:
+        sys.exit("Telegram отклонил токен — проверьте TELEGRAM_BOT_TOKEN в .env")
+    except KeyboardInterrupt:
+        pass
