@@ -57,7 +57,12 @@ class Assistant:
         if not audio:
             return
         data, fmt = audio
-        await self.bot.send_voice(self.owner_id, BufferedInputFile(data, filename=f"reply.{fmt}"))
+        try:
+            await self.bot.send_voice(self.owner_id, BufferedInputFile(data, filename=f"reply.{fmt}"))
+        except TelegramBadRequest:
+            # Без ffmpeg голос получается в MP3; если Telegram не примет его как голосовое — шлём аудиофайлом.
+            log.warning("send_voice rejected %s, sending as audio", fmt)
+            await self.bot.send_audio(self.owner_id, BufferedInputFile(data, filename=f"reply.{fmt}"))
 
     async def reply(self, text: str, *, speak: bool) -> None:
         await self.send_text(text)
