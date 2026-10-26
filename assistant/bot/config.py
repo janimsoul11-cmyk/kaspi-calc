@@ -61,6 +61,8 @@ class Settings:
     stt_price_per_hour: float
     tts_voice: str
     tts_rate: str
+    tts_lang: str
+    tts_providers: list[str]
     timezone: str
     morning_time: time
     evening_time: time
@@ -103,6 +105,8 @@ def load_settings() -> Settings:
         stt_price_per_hour=float(_env("STT_PRICE_PER_HOUR", "0.111")),
         tts_voice=_env("TTS_VOICE", "ru-RU-DmitryNeural"),
         tts_rate=_env("TTS_RATE", "+5%"),
+        tts_lang=_env("TTS_LANG", "ru"),
+        tts_providers=[p.strip() for p in _env("TTS_PROVIDERS", "edge,google").split(",") if p.strip()],
         timezone=_env("TIMEZONE", "Asia/Almaty"),
         morning_time=_time("MORNING_TIME", "07:00"),
         evening_time=_time("EVENING_TIME", "21:30"),

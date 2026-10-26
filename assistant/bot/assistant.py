@@ -13,6 +13,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from .brain import Brain, BudgetExceeded
 from .db import Store
 from .formatting import speech_text, split_message, strip_html
+from .timeutil import now_local
 from .voice import synthesize
 
 log = logging.getLogger(__name__)
@@ -55,6 +56,11 @@ class Assistant:
         async with ChatActionSender.record_voice(chat_id=self.owner_id, bot=self.bot):
             audio = await synthesize(speech_text(text))
         if not audio:
+            # Не молчим: раз в день сообщаем, что голос недоступен.
+            today = now_local().date().isoformat()
+            if self.store.kv_get("tts_fail_notice") != today:
+                self.store.kv_set("tts_fail_notice", today)
+                await self.send_text("🔇 Озвучка сейчас не работает, отвечаю текстом. Проверить — /voicetest")
             return
         data, fmt = audio
         try:

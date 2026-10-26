@@ -25,7 +25,7 @@ from .config import settings
 from .db import month_start_utc
 from .formatting import esc, render_export, render_notes, render_reminders, render_tasks, render_today
 from .timeutil import now_local, now_utc_str, to_utc_str
-from .voice import STTError, transcribe
+from .voice import STTError, last_tts_errors, synthesize, transcribe
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ COMMANDS = [
     BotCommand(command="week", description="Недельный обзор сейчас"),
     BotCommand(command="memory", description="Что ассистент знает обо мне"),
     BotCommand(command="voice", description="Голосовые ответы: auto / on / off"),
+    BotCommand(command="voicetest", description="Проверить озвучку"),
     BotCommand(command="stats", description="Расходы за месяц"),
     BotCommand(command="export", description="Выгрузить память (бэкап)"),
     BotCommand(command="help", description="Как пользоваться"),
@@ -144,6 +145,21 @@ def build_router(assistant: Assistant) -> Router:
             f"Показ расшифровки: <b>{'on' if assistant.show_transcript else 'off'}</b> "
             "(/voice transcript on|off)"
         )
+
+    @router.message(Command("voicetest"))
+    async def cmd_voicetest(message: Message) -> None:
+        """Проверяет каждый сервис озвучки отдельно и присылает образец от первого рабочего."""
+        lines, sample = ["<b>Проверка озвучки</b>"], None
+        for name in settings.tts_providers:
+            audio = await synthesize("Ассаламу алейкум! Проверка голоса.", providers=[name])
+            if audio:
+                lines.append(f"✅ {name}: работает ({len(audio[0]) // 1024} КБ, {audio[1]})")
+                sample = sample or audio
+            else:
+                lines.append(f"❌ {name}: {esc(last_tts_errors.get(name, 'не ответил'))}")
+        await message.answer("\n".join(lines))
+        if sample:
+            await message.answer_voice(BufferedInputFile(sample[0], filename=f"test.{sample[1]}"))
 
     @router.message(Command("stats"))
     async def cmd_stats(message: Message) -> None:
