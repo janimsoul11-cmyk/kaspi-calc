@@ -10,8 +10,20 @@ ROOT=/opt/assistant
 
 [ "$(id -u)" -eq 0 ] || { echo "Нужен root: sudo bash install.sh"; exit 1; }
 
+# /dev/null должен быть символьным устройством с правами 666. Если его испортили (заменили обычным
+# файлом или сменили права), apt не может проверять подписи. Пересоздаём атомарно: сервисам без простоя.
+if [ ! -c /dev/null ] || [ "$(stat -c %a /dev/null)" != "666" ]; then
+    echo "== /dev/null испорчен ($(ls -l /dev/null)) — восстанавливаю"
+    rm -f /dev/null.new
+    mknod -m 666 /dev/null.new c 1 3
+    mv -f /dev/null.new /dev/null
+    ls -l /dev/null
+fi
+
 echo "== Пакеты"
-apt-get update -qq
+if ! apt-get update -qq; then
+    echo "!! apt-get update завершился с ошибками — пробую поставить пакеты из кеша"
+fi
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git python3-venv ffmpeg >/dev/null
 
 echo "== Пользователь и папки"
