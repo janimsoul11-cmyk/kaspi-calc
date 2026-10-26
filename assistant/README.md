@@ -126,6 +126,11 @@
 
 ## Постоянная работа на сервере (VPS)
 
+**Ubuntu без Docker (рекомендуется, как у Sellmir):** установка одной командой и служба systemd — см.
+[`deploy/README.md`](deploy/README.md).
+
+**Или через Docker:**
+
 Подойдёт любой VPS с 1 ГБ RAM (Hetzner CX22, PS.kz и т.п., ~$5/мес).
 
 ```bash
