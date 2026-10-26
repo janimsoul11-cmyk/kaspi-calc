@@ -64,6 +64,12 @@ HELP_TEXT = """\
 Команды: /today /plan /tasks /reminders /ideas /review /week /memory /voice /stats /export"""
 
 
+def money(usd: float | None) -> str:
+    """$0.0042 вместо $0.00: на дешёвых моделях траты меньше цента."""
+    usd = usd or 0.0
+    return f"${usd:.2f}" if usd >= 1 else f"${usd:.4f}"
+
+
 def reminder_keyboard(reminder_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="✅ Готово", callback_data=f"r:done:{reminder_id}"),
@@ -169,12 +175,12 @@ def build_router(assistant: Assistant) -> Router:
         total = sum(u.get("cost_usd") or 0 for u in usage.values())
         budget = f" из ${settings.monthly_budget_usd:.0f}" if settings.monthly_budget_usd > 0 else ""
         await message.answer(
-            f"<b>Расходы с начала месяца: ${total:.2f}{budget}</b>\n"
+            f"<b>Расходы с начала месяца: {money(total)}{budget}</b>\n"
             f"Claude ({esc(settings.model)}): {llm.get('calls', 0)} запросов, "
             f"вход {llm.get('input_tokens') or 0:,} / кеш {llm.get('cache_read') or 0:,} / "
-            f"выход {llm.get('output_tokens') or 0:,} токенов — ${llm.get('cost_usd') or 0:.2f}\n"
-            f"Распознавание речи: {(stt.get('seconds') or 0) / 60:.0f} мин — ${stt.get('cost_usd') or 0:.2f}\n"
-            + (f"Живой голос (OpenAI): {usage['tts']['calls']} ответов — ${usage['tts']['cost_usd'] or 0:.2f}\n"
+            f"выход {llm.get('output_tokens') or 0:,} токенов — {money(llm.get('cost_usd'))}\n"
+            f"Распознавание речи: {(stt.get('seconds') or 0) / 60:.0f} мин — {money(stt.get('cost_usd'))}\n"
+            + (f"Живой голос (OpenAI): {usage['tts']['calls']} ответов — {money(usage['tts']['cost_usd'])}\n"
                if "tts" in usage else "")
             + "<i>Оценка по прайсу; точные цифры — в консолях Anthropic и OpenAI.</i>"
         )

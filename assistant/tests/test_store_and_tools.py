@@ -134,3 +134,11 @@ def test_setup_wizard_renders_env_from_template():
     # Комментарии с примерами не трогаем
     assert any(line.startswith("# Альтернатива — OpenAI") for line in lines)
     assert len(lines) == len(template.splitlines())
+
+
+def test_money_shows_fractions_of_a_cent():
+    from bot.handlers import money
+
+    assert money(0.0042) == "$0.0042"
+    assert money(None) == "$0.0000"
+    assert money(12.345) == "$12.35"

@@ -118,7 +118,7 @@ def load_settings() -> Settings:
         openai_api_key=_env("OPENAI_API_KEY"),
         openai_base_url=_env("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
         openai_tts_model=_env("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"),
-        openai_tts_voice=_env("OPENAI_TTS_VOICE", "ash"),
+        openai_tts_voice=_env("OPENAI_TTS_VOICE", "cedar"),
         openai_tts_instructions=_env(
             "OPENAI_TTS_INSTRUCTIONS",
             "Говори на русском естественно и тепло, как близкий личный помощник: спокойный темп, "
