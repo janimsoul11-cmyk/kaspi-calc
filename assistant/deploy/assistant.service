@@ -1,0 +1,24 @@
+# /etc/systemd/system/assistant.service — личный ассистент в Telegram (long polling, порты не нужны).
+[Unit]
+Description=Личный ассистент в Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=assistant
+WorkingDirectory=/opt/assistant/repo/assistant
+EnvironmentFile=/opt/assistant/.env
+Environment=DATA_DIR=/opt/assistant/data
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/assistant/venv/bin/python -m bot
+Restart=always
+RestartSec=5
+# Писать сервису нужно только в data/ (база, профиль); /export пишет во временную папку.
+ProtectSystem=strict
+ReadWritePaths=/opt/assistant/data
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

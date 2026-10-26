@@ -1,0 +1,6 @@
+anthropic~=2.3
+aiogram~=3.31
+edge-tts~=7.3
+gTTS~=2.5
+croniter~=6.2
+tzdata>=2026.1
