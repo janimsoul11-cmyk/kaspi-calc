@@ -11,7 +11,11 @@ echo Останавливаю бота на этом компьютере...
 powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -like '*-m bot*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
 
 set "IP="
-set /p IP=Введи IP сервера (тот же, что у Sellmir) и нажми Enter: 
+rem Если в .ssh\config есть Host sellmir (ключ от сервера Sellmir) - по умолчанию подключаемся через него.
+set "DEFAULT_HOST="
+findstr /b /i /c:"Host sellmir" "%USERPROFILE%\.ssh\config" >nul 2>nul && set "DEFAULT_HOST=sellmir"
+set /p IP=Введи IP сервера или имя из .ssh\config [%DEFAULT_HOST%]: 
+if "%IP%"=="" set "IP=%DEFAULT_HOST%"
 if "%IP%"=="" (echo IP не введён. & pause & exit /b 1)
 echo.
 echo Сейчас спросит пароль root от сервера. Символы при вводе не видны - это нормально.
