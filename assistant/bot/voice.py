@@ -20,13 +20,13 @@ from .config import settings
 
 log = logging.getLogger(__name__)
 
-TTS_MAX_CHARS = 2500
-
 # Последняя ошибка каждого провайдера — для /voicetest и уведомления владельца.
 last_tts_errors: dict[str, str] = {}
 # До какого момента (time.monotonic) провайдер считается «недавно падавшим».
 _failed_until: dict[str, float] = {}
 FAILED_PROVIDER_PENALTY = 3600
+# Кто озвучил последний ответ и сколько символов — для учёта расходов на платный голос.
+last_spoken: dict = {}
 
 
 class STTError(Exception):
@@ -102,7 +102,33 @@ async def _google_tts(text: str) -> bytes:
     return await asyncio.wait_for(asyncio.to_thread(run), timeout=60)
 
 
-TTS_PROVIDERS = {"edge": _edge_tts, "google": _google_tts}
+async def _openai_tts(text: str) -> bytes:
+    """Живой голос OpenAI (gpt-4o-mini-tts): платно, ~$0.015 за минуту речи, интонацию задаёт instructions."""
+    payload = {
+        "model": settings.openai_tts_model,
+        "voice": settings.openai_tts_voice,
+        "input": text,
+        "instructions": settings.openai_tts_instructions,
+        "response_format": "mp3",
+    }
+    timeout = aiohttp.ClientTimeout(total=90)
+    async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
+        async with session.post(
+            f"{settings.openai_base_url}/audio/speech",
+            json=payload,
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+        ) as resp:
+            if resp.status != 200:
+                raise RuntimeError(f"OpenAI TTS {resp.status}: {(await resp.text())[:200]}")
+            return await resp.read()
+
+
+TTS_PROVIDERS = {"openai": _openai_tts, "edge": _edge_tts, "google": _google_tts}
+
+
+def tts_configured(name: str) -> bool:
+    """Платные провайдеры включаются только когда задан ключ."""
+    return name != "openai" or bool(settings.openai_api_key)
 
 
 async def synthesize(text: str, providers: list[str] | None = None) -> tuple[bytes, str] | None:
@@ -110,8 +136,9 @@ async def synthesize(text: str, providers: list[str] | None = None) -> tuple[byt
     text = text.strip()
     if not text:
         return None
-    if len(text) > TTS_MAX_CHARS:
-        text = text[:TTS_MAX_CHARS].rsplit(".", 1)[0] + ". Остальное — в тексте."
+    if len(text) > settings.tts_max_chars:
+        # Голосом — начало ответа, остальное в тексте: длинные списки на слух тяжело воспринимать.
+        text = text[:settings.tts_max_chars].rsplit(".", 1)[0] + ". Остальное — в тексте."
     names = providers or settings.tts_providers
     if providers is None:
         # Недавно падавший провайдер пробуем последним, чтобы не ждать его на каждом ответе.
@@ -120,6 +147,9 @@ async def synthesize(text: str, providers: list[str] | None = None) -> tuple[byt
     for name in names:
         provider = TTS_PROVIDERS.get(name)
         if provider is None:
+            continue
+        if not tts_configured(name):
+            last_tts_errors[name] = "не настроен: нет ключа в .env"
             continue
         try:
             mp3 = await provider(text)
@@ -134,6 +164,12 @@ async def synthesize(text: str, providers: list[str] | None = None) -> tuple[byt
             continue
         last_tts_errors.pop(name, None)
         _failed_until.pop(name, None)
+        last_spoken.update(provider=name, chars=len(text))
         ogg = await _mp3_to_ogg_opus(mp3)
         return (ogg, "ogg") if ogg else (mp3, "mp3")
     return None
+
+
+def openai_tts_cost(chars: int) -> float:
+    """Оценка: ~900 символов русской речи в минуту, ~$0.015 за минуту."""
+    return chars / 900 * 0.015

@@ -60,6 +60,71 @@ def test_recently_failed_provider_is_tried_last(monkeypatch):
     assert calls[-2:] == ["edge", "google"]
 
 
+def test_openai_voice_used_only_with_key_and_costed(store, monkeypatch):
+    calls = []
+
+    async def openai(text):
+        calls.append(text)
+        return b"mp3-openai"
+
+    async def free(text):
+        return b"mp3-free"
+
+    monkeypatch.setitem(voice.TTS_PROVIDERS, "openai", openai)
+    monkeypatch.setitem(voice.TTS_PROVIDERS, "google", free)
+    monkeypatch.setattr(settings, "tts_providers", ["openai", "google"])
+    monkeypatch.setattr(voice, "_failed_until", {})
+    _no_ffmpeg(monkeypatch)
+
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    assert asyncio.run(voice.synthesize("Привет")) == (b"mp3-free", "mp3")
+    assert calls == [] and "нет ключа" in voice.last_tts_errors["openai"]
+
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    bot = FakeBot()
+    asyncio.run(Assistant(bot, store, brain=None, owner_id=42).send_voice("Привет, Дони! " * 10))
+    assert len(calls) == 1 and len(bot.voices) == 1
+    tts = store.usage_since("2000-01-01 00:00:00")["tts"]
+    assert tts["calls"] == 1 and tts["cost_usd"] > 0
+
+
+def test_openai_tts_request_shape(monkeypatch):
+    from fake_services import FakeServices
+
+    async def scenario():
+        fake = FakeServices()
+        base = await fake.start()
+        try:
+            monkeypatch.setattr(settings, "openai_base_url", f"{base}/openai")
+            monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+            audio = await voice._openai_tts("Привет, Дони!")
+        finally:
+            await fake.stop()
+        return audio, fake.tts_requests
+
+    audio, requests = asyncio.run(scenario())
+    assert audio == b"ID3-fake-openai-mp3"
+    body = requests[0]["body"]
+    assert requests[0]["auth"] == "Bearer sk-test"
+    assert body["model"] == "gpt-4o-mini-tts" and body["input"] == "Привет, Дони!"
+    assert body["response_format"] == "mp3" and body["voice"] and body["instructions"]
+
+
+def test_long_answer_is_spoken_in_short(monkeypatch):
+    spoken = []
+
+    async def provider(text):
+        spoken.append(text)
+        return b"mp3"
+
+    monkeypatch.setitem(voice.TTS_PROVIDERS, "google", provider)
+    monkeypatch.setattr(settings, "tts_providers", ["google"])
+    monkeypatch.setattr(settings, "tts_max_chars", 100)
+    _no_ffmpeg(monkeypatch)
+    asyncio.run(voice.synthesize("Первое предложение. " * 20))
+    assert len(spoken[0]) < 130 and spoken[0].endswith("Остальное — в тексте.")
+
+
 def test_edge_retries_once_when_no_audio(monkeypatch):
     calls = []
 

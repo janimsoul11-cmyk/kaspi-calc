@@ -13,8 +13,9 @@ from aiogram.utils.chat_action import ChatActionSender
 from .brain import Brain, BudgetExceeded
 from .db import Store
 from .formatting import speech_text, split_message, strip_html
+from .config import settings
 from .timeutil import now_local
-from .voice import synthesize
+from .voice import last_spoken, openai_tts_cost, synthesize
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +63,9 @@ class Assistant:
                 self.store.kv_set("tts_fail_notice", today)
                 await self.send_text("🔇 Озвучка сейчас не работает, отвечаю текстом. Проверить — /voicetest")
             return
+        if last_spoken.get("provider") == "openai":
+            self.store.add_usage("tts", settings.openai_tts_model,
+                                 cost_usd=openai_tts_cost(last_spoken.get("chars", 0)))
         data, fmt = audio
         try:
             await self.bot.send_voice(self.owner_id, BufferedInputFile(data, filename=f"reply.{fmt}"))

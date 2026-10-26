@@ -30,6 +30,7 @@ class FakeServices:
         self.files: dict[str, bytes] = {}    # file_id -> содержимое
         self.stt_requests: list[dict] = []
         self.claude_requests: list[dict] = []
+        self.tts_requests: list[dict] = []
         self.transcript = "Напомни мне проверить тест"
         self._new_update = asyncio.Event()
         self._runner: web.AppRunner | None = None
@@ -42,6 +43,7 @@ class FakeServices:
         app.router.add_get("/file/bot{token}/{path:.*}", self._telegram_file)
         app.router.add_post("/stt/audio/transcriptions", self._stt)
         app.router.add_post("/anthropic/v1/messages", self._claude)
+        app.router.add_post("/openai/audio/speech", self._openai_speech)
         self._runner = web.AppRunner(app)
         await self._runner.setup()
         site = web.TCPSite(self._runner, "127.0.0.1", 0)
@@ -155,6 +157,11 @@ class FakeServices:
                 record[key] = value
         self.stt_requests.append(record)
         return web.json_response({"text": self.transcript})
+
+    # ---------- OpenAI TTS ----------
+    async def _openai_speech(self, request: web.Request) -> web.Response:
+        self.tts_requests.append({"auth": request.headers.get("Authorization"), "body": await request.json()})
+        return web.Response(body=b"ID3-fake-openai-mp3", content_type="audio/mpeg")
 
     # ---------- Claude ----------
     async def _claude(self, request: web.Request) -> web.Response:

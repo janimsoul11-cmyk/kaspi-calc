@@ -63,6 +63,12 @@ class Settings:
     tts_rate: str
     tts_lang: str
     tts_providers: list[str]
+    tts_max_chars: int
+    openai_api_key: str
+    openai_base_url: str
+    openai_tts_model: str
+    openai_tts_voice: str
+    openai_tts_instructions: str
     timezone: str
     morning_time: time
     evening_time: time
@@ -106,7 +112,18 @@ def load_settings() -> Settings:
         tts_voice=_env("TTS_VOICE", "ru-RU-DmitryNeural"),
         tts_rate=_env("TTS_RATE", "+5%"),
         tts_lang=_env("TTS_LANG", "ru"),
-        tts_providers=[p.strip() for p in _env("TTS_PROVIDERS", "edge,google").split(",") if p.strip()],
+        # openai используется, только если задан OPENAI_API_KEY; без ключа — сразу бесплатные.
+        tts_providers=[p.strip() for p in _env("TTS_PROVIDERS", "openai,edge,google").split(",") if p.strip()],
+        tts_max_chars=int(_env("TTS_MAX_CHARS", "1200")),
+        openai_api_key=_env("OPENAI_API_KEY"),
+        openai_base_url=_env("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
+        openai_tts_model=_env("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"),
+        openai_tts_voice=_env("OPENAI_TTS_VOICE", "ash"),
+        openai_tts_instructions=_env(
+            "OPENAI_TTS_INSTRUCTIONS",
+            "Говори на русском естественно и тепло, как близкий личный помощник: спокойный темп, "
+            "живые интонации, без дикторского пафоса.",
+        ),
         timezone=_env("TIMEZONE", "Asia/Almaty"),
         morning_time=_time("MORNING_TIME", "07:00"),
         evening_time=_time("EVENING_TIME", "21:30"),

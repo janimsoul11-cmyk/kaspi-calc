@@ -174,7 +174,9 @@ def build_router(assistant: Assistant) -> Router:
             f"вход {llm.get('input_tokens') or 0:,} / кеш {llm.get('cache_read') or 0:,} / "
             f"выход {llm.get('output_tokens') or 0:,} токенов — ${llm.get('cost_usd') or 0:.2f}\n"
             f"Распознавание речи: {(stt.get('seconds') or 0) / 60:.0f} мин — ${stt.get('cost_usd') or 0:.2f}\n"
-            "<i>Оценка по прайсу; точные цифры — в консоли Anthropic.</i>"
+            + (f"Живой голос (OpenAI): {usage['tts']['calls']} ответов — ${usage['tts']['cost_usd'] or 0:.2f}\n"
+               if "tts" in usage else "")
+            + "<i>Оценка по прайсу; точные цифры — в консолях Anthropic и OpenAI.</i>"
         )
 
     @router.message(Command("export"))
