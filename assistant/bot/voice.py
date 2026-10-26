@@ -10,6 +10,7 @@ import asyncio
 import io
 import logging
 import shutil
+import time
 
 import aiohttp
 import edge_tts
@@ -23,6 +24,9 @@ TTS_MAX_CHARS = 2500
 
 # Последняя ошибка каждого провайдера — для /voicetest и уведомления владельца.
 last_tts_errors: dict[str, str] = {}
+# До какого момента (time.monotonic) провайдер считается «недавно падавшим».
+_failed_until: dict[str, float] = {}
+FAILED_PROVIDER_PENALTY = 3600
 
 
 class STTError(Exception):
@@ -108,7 +112,12 @@ async def synthesize(text: str, providers: list[str] | None = None) -> tuple[byt
         return None
     if len(text) > TTS_MAX_CHARS:
         text = text[:TTS_MAX_CHARS].rsplit(".", 1)[0] + ". Остальное — в тексте."
-    for name in providers or settings.tts_providers:
+    names = providers or settings.tts_providers
+    if providers is None:
+        # Недавно падавший провайдер пробуем последним, чтобы не ждать его на каждом ответе.
+        now = time.monotonic()
+        names = sorted(names, key=lambda n: _failed_until.get(n, 0) > now)
+    for name in names:
         provider = TTS_PROVIDERS.get(name)
         if provider is None:
             continue
@@ -116,12 +125,15 @@ async def synthesize(text: str, providers: list[str] | None = None) -> tuple[byt
             mp3 = await provider(text)
         except Exception as e:  # оба сервиса неофициальные и могут временно не работать
             last_tts_errors[name] = f"{type(e).__name__}: {e}"[:300]
+            _failed_until[name] = time.monotonic() + FAILED_PROVIDER_PENALTY
             log.warning("TTS %s failed: %s", name, last_tts_errors[name])
             continue
         if not mp3:
             last_tts_errors[name] = "пустой ответ"
+            _failed_until[name] = time.monotonic() + FAILED_PROVIDER_PENALTY
             continue
         last_tts_errors.pop(name, None)
+        _failed_until.pop(name, None)
         ogg = await _mp3_to_ogg_opus(mp3)
         return (ogg, "ogg") if ogg else (mp3, "mp3")
     return None

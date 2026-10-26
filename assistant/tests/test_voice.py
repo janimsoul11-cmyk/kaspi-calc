@@ -34,6 +34,32 @@ def test_tts_falls_back_to_next_provider(monkeypatch):
     assert asyncio.run(voice.synthesize("Привет", providers=["edge"])) is None
 
 
+def test_recently_failed_provider_is_tried_last(monkeypatch):
+    calls = []
+
+    async def broken(text):
+        calls.append("edge")
+        raise edge_tts.exceptions.NoAudioReceived("No audio was received.")
+
+    async def works(text):
+        calls.append("google")
+        return b"mp3"
+
+    monkeypatch.setitem(voice.TTS_PROVIDERS, "edge", broken)
+    monkeypatch.setitem(voice.TTS_PROVIDERS, "google", works)
+    monkeypatch.setattr(settings, "tts_providers", ["edge", "google"])
+    monkeypatch.setattr(voice, "_failed_until", {})
+    _no_ffmpeg(monkeypatch)
+
+    asyncio.run(voice.synthesize("раз"))
+    asyncio.run(voice.synthesize("два"))
+    assert calls == ["edge", "google", "google"]
+    # Штраф прошёл — edge снова первый.
+    voice._failed_until["edge"] = 0
+    asyncio.run(voice.synthesize("три"))
+    assert calls[-2:] == ["edge", "google"]
+
+
 def test_edge_retries_once_when_no_audio(monkeypatch):
     calls = []
 
