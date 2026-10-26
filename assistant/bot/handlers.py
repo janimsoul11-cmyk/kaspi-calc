@@ -25,7 +25,7 @@ from .config import settings
 from .db import month_start_utc
 from .formatting import esc, render_export, render_notes, render_reminders, render_tasks, render_today
 from .timeutil import now_local, now_utc_str, to_utc_str
-from .voice import STTError, last_tts_errors, synthesize, transcribe
+from .voice import EDGE_VOICE_CHOICES, STTError, edge_sample, last_tts_errors, synthesize, transcribe
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ COMMANDS = [
     BotCommand(command="week", description="Недельный обзор сейчас"),
     BotCommand(command="memory", description="Что ассистент знает обо мне"),
     BotCommand(command="voice", description="Голосовые ответы: auto / on / off"),
+    BotCommand(command="voices", description="Выбрать голос (послушать образцы)"),
     BotCommand(command="voicetest", description="Проверить озвучку"),
     BotCommand(command="stats", description="Расходы за месяц"),
     BotCommand(command="export", description="Выгрузить память (бэкап)"),
@@ -62,6 +63,12 @@ HELP_TEXT = """\
 • ночью — итог дня в долгую память.
 
 Команды: /today /plan /tasks /reminders /ideas /review /week /memory /voice /stats /export"""
+
+
+VOICE_SAMPLE_TEXT = (
+    "Ассаламу алейкум! Так звучит этот голос. Завтра в одиннадцать у тебя созвон с поставщиком, "
+    "напомню за полчаса."
+)
 
 
 def money(usd: float | None) -> str:
@@ -166,6 +173,38 @@ def build_router(assistant: Assistant) -> Router:
         await message.answer("\n".join(lines))
         if sample:
             await message.answer_voice(BufferedInputFile(sample[0], filename=f"test.{sample[1]}"))
+
+    @router.message(Command("voices"))
+    async def cmd_voices(message: Message) -> None:
+        """Образцы бесплатных голосов Microsoft с кнопкой выбора под каждым."""
+        await message.answer(
+            "Послушай образцы и нажми «Выбрать» под понравившимся. Это бесплатные голоса Microsoft.\n"
+            f"Сейчас: <b>{esc(settings.tts_voice)}</b>"
+        )
+        for voice_id, title in EDGE_VOICE_CHOICES:
+            async with ChatActionSender.record_voice(chat_id=message.chat.id, bot=message.bot):
+                audio = await edge_sample(VOICE_SAMPLE_TEXT, voice_id)
+            if not audio:
+                await message.answer(f"❌ {esc(title)}: сервис не ответил")
+                continue
+            await message.answer_voice(
+                BufferedInputFile(audio[0], filename=f"sample.{audio[1]}"),
+                caption=title,
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="✅ Выбрать", callback_data=f"voice:{voice_id}")
+                ]]),
+            )
+
+    @router.callback_query(F.data.startswith("voice:"))
+    async def on_voice_choice(query: CallbackQuery) -> None:
+        voice_id = query.data.split(":", 1)[1]
+        if voice_id not in {v for v, _ in EDGE_VOICE_CHOICES}:
+            await query.answer("Неизвестный голос")
+            return
+        settings.tts_voice = voice_id
+        store.kv_set("tts_voice", voice_id)
+        await query.answer("Голос выбран")
+        await query.message.answer(f"Готово: теперь отвечаю голосом <b>{esc(voice_id)}</b>.")
 
     @router.message(Command("stats"))
     async def cmd_stats(message: Message) -> None:

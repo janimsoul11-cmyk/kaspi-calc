@@ -188,3 +188,40 @@ async def _setup_mode(tmp_path, monkeypatch):
     finally:
         await _stop(task)
         await fake.stop()
+
+
+def test_voice_picker(tmp_path, monkeypatch):
+    asyncio.run(_voice_picker(tmp_path, monkeypatch))
+
+
+async def _voice_picker(tmp_path, monkeypatch):
+    from bot import handlers as handlers_mod
+
+    async def fake_sample(text, voice):
+        return (b"OggS-" + voice.encode(), "ogg")
+
+    fake = FakeServices()
+    base = await fake.start()
+    _configure(monkeypatch, tmp_path, base, OWNER)
+    monkeypatch.setattr(handlers_mod, "edge_sample", fake_sample)
+    monkeypatch.setattr(settings, "tts_voice", "ru-RU-DmitryNeural")
+    task = asyncio.create_task(bot_main.main())
+    try:
+        await fake.wait_for(lambda: fake.sent("setMyCommands"), what="запуск")
+        fake.push(fake.message(OWNER, "/voices"))
+        samples = await fake.wait_for(lambda: len(fake.sent("sendVoice", OWNER)) >= 6 and fake.sent("sendVoice", OWNER),
+                                      what="6 образцов голосов")
+        andrew = next(c for c in samples if "Andrew" in c["params"].get("caption", ""))
+        button = json.loads(andrew["params"]["reply_markup"])["inline_keyboard"][0][0]
+        assert button["callback_data"] == "voice:en-US-AndrewMultilingualNeural"
+
+        fake.push({"callback_query": {
+            "id": "cb-v", "from": {"id": OWNER, "is_bot": False, "first_name": "Тест"}, "chat_instance": "ci",
+            "data": button["callback_data"],
+            "message": {"message_id": 7, "date": 0, "chat": {"id": OWNER, "type": "private"}},
+        }})
+        await fake.wait_for(lambda: settings.tts_voice == "en-US-AndrewMultilingualNeural", what="голос выбран")
+        assert Store(settings.db_path).kv_get("tts_voice") == "en-US-AndrewMultilingualNeural"
+    finally:
+        await _stop(task)
+        await fake.stop()

@@ -75,11 +75,11 @@ async def _mp3_to_ogg_opus(mp3: bytes) -> bytes | None:
     return out
 
 
-async def _edge_tts(text: str) -> bytes:
+async def _edge_tts(text: str, voice: str | None = None) -> bytes:
     """Голоса Microsoft. Сервис иногда отвечает без звука (NoAudioReceived) — одна повторная попытка."""
     for attempt in range(2):
         try:
-            communicate = edge_tts.Communicate(text, settings.tts_voice, rate=settings.tts_rate)
+            communicate = edge_tts.Communicate(text, voice or settings.tts_voice, rate=settings.tts_rate)
             mp3 = bytearray()
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
@@ -168,6 +168,31 @@ async def synthesize(text: str, providers: list[str] | None = None) -> tuple[byt
         ogg = await _mp3_to_ogg_opus(mp3)
         return (ogg, "ogg") if ogg else (mp3, "mp3")
     return None
+
+
+# Бесплатные голоса Microsoft для /voices. Multilingual — новое «разговорное» поколение (как в Copilot),
+# сами определяют язык текста.
+EDGE_VOICE_CHOICES = [
+    ("ru-RU-DmitryNeural", "Дмитрий — русский, мужской"),
+    ("ru-RU-SvetlanaNeural", "Светлана — русский, женский"),
+    ("en-US-AndrewMultilingualNeural", "Andrew — разговорный, мужской"),
+    ("en-US-BrianMultilingualNeural", "Brian — разговорный, мужской"),
+    ("en-US-AvaMultilingualNeural", "Ava — разговорный, женский"),
+    ("en-US-EmmaMultilingualNeural", "Emma — разговорный, женский"),
+]
+
+
+async def edge_sample(text: str, voice: str) -> tuple[bytes, str] | None:
+    """Образец конкретного голоса Microsoft (для выбора в /voices)."""
+    try:
+        mp3 = await _edge_tts(text, voice)
+    except Exception as e:
+        last_tts_errors[f"edge:{voice}"] = f"{type(e).__name__}: {e}"[:300]
+        return None
+    if not mp3:
+        return None
+    ogg = await _mp3_to_ogg_opus(mp3)
+    return (ogg, "ogg") if ogg else (mp3, "mp3")
 
 
 def openai_tts_cost(chars: int) -> float:

@@ -173,3 +173,20 @@ def test_owner_is_told_once_a_day_when_voice_is_unavailable(store, monkeypatch):
     asyncio.run(a.send_voice("Ещё ответ"))
     assert len(bot.messages) == 1 and "/voicetest" in bot.messages[0]
     assert bot.voices == []
+
+
+def test_edge_uses_requested_voice(monkeypatch):
+    used = []
+
+    class Communicate:
+        def __init__(self, text, voice_name, rate):
+            used.append(voice_name)
+
+        async def stream(self):
+            yield {"type": "audio", "data": b"mp3"}
+
+    monkeypatch.setattr(voice.edge_tts, "Communicate", Communicate)
+    monkeypatch.setattr(settings, "tts_voice", "ru-RU-DmitryNeural")
+    asyncio.run(voice._edge_tts("Привет"))
+    asyncio.run(voice._edge_tts("Привет", "en-US-AvaMultilingualNeural"))
+    assert used == ["ru-RU-DmitryNeural", "en-US-AvaMultilingualNeural"]

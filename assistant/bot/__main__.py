@@ -60,6 +60,8 @@ async def main() -> None:
 
     store = Store(settings.db_path)
     seed_core_memory(store)
+    if voice := store.kv_get("tts_voice"):  # голос, выбранный через /voices
+        settings.tts_voice = voice
     assistant = Assistant(bot, store, Brain(store), settings.owner_id)
     dp.include_router(build_router(assistant))
     await bot.set_my_commands(COMMANDS)
